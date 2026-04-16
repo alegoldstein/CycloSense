@@ -1,1 +1,0 @@
-m//config uart for MCU
