@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "GPS";
 
@@ -15,7 +17,7 @@ static const char *TAG = "GPS";
 #define GPS_TX_PIN    17
 #endif
 #ifndef GPS_RX_PIN
-#define GPS_RX_PIN    18
+#define GPS_RX_PIN    16
 #endif
 #ifndef GPS_BAUD
 #define GPS_BAUD      9600
@@ -96,20 +98,19 @@ void gps_set_mode(uint8_t mod, uint8_t freq) {
 
 int gps_read_line(char *buf, size_t max_len, uint32_t timeout_ms) {
     size_t pos = 0;
-    TickType_t deadline = xTaskGetTickCount() +
-                          pdMS_TO_TICKS(timeout_ms);
+    TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(timeout_ms);
     while (pos < max_len - 1) {
         uint8_t byte;
-        int n = uart_read_bytes(GPS_UART_NUM, &byte, 1,
-                                deadline - xTaskGetTickCount());
-        if (n <= 0) return -1; // timeout
+        TickType_t now = xTaskGetTickCount();
+        TickType_t remaining = (deadline > now) ? (deadline - now) : 0;
+        int n = uart_read_bytes(GPS_UART_NUM, &byte, 1, remaining);
+        if (n <= 0) return -1;
         buf[pos++] = (char)byte;
         if (byte == '\n') break;
     }
     buf[pos] = '\0';
     return (int)pos;
 }
-
 // ── NMEA parsers ─────────────────────────────────────────────
 
 // Tokenise in-place, returns pointer array into sentence copy
@@ -202,4 +203,11 @@ bool gps_parse(const char *sentence, GPS_data *out) {
     else if (strcmp(type, "VTG") == 0) return parse_VTG(fields, n, out);
 
     return false; // GSA/GSV/GLL not parsed yet
+}
+
+//update rate
+void gps_set_update_rate(uint16_t ms) {
+    char cmd[32];
+    snprintf(cmd, sizeof(cmd), "$PMTK220,%d", ms);
+    uart_write_nmea(cmd);
 }

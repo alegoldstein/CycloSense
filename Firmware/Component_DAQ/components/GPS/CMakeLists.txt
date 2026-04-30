@@ -1,3 +1,5 @@
-cmake_minimum_required(VERSION 3.16.0)
-include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(GPS_data_acquisition)
+idf_component_register(
+    SRCS "gps.c"
+    INCLUDE_DIRS "."
+    REQUIRES driver freertos
+)

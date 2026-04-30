@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 // Bitmask flags for set_mode()
 #define GPS_GLL  (1 << 0)
@@ -45,3 +46,6 @@ bool gps_parse(const char *sentence, GPS_data *out);
 // Blocking read: fills buf with one '\n'-terminated NMEA line
 // Returns number of bytes read, -1 on timeout
 int gps_read_line(char *buf, size_t max_len, uint32_t timeout_ms);
+
+//update gps rate
+void gps_set_update_rate(uint16_t ms); // 1000 = 1Hz, 500 = 2Hz, 200 = 5Hz
