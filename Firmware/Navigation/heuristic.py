@@ -1,0 +1,1 @@
+#heuristic calculation, get weight of path from current node to end goal
