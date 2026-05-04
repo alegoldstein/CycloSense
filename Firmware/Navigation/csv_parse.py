@@ -1,6 +1,7 @@
 #turn csv data into a dictionary with info for A*
 
 import osmnx as ox
+from collections import defaultdict
 
 #inputs to graph extraction
 
@@ -78,4 +79,23 @@ def fetch_nodes_edges(center_point=(42.0411, -87.6901),
             'oneway':  data.get('oneway', False)
         })
 
-    return nodes, edges
+    return nodes, edges, G
+
+
+
+
+def build_adjacency(edges):
+    adjacency = defaultdict(list)
+    
+    for edge in edges:
+        u = edge['u']
+        v = edge['v']
+        cost = edge['length']  # add weighted cost later
+        
+        adjacency[u].append((v, cost, edge))
+        
+        # add reverse direction if not one way
+        if not edge['oneway']:
+            adjacency[v].append((u, cost, edge))
+    
+    return adjacency
