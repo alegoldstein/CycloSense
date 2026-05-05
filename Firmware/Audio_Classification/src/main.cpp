@@ -2,7 +2,7 @@
 #include <driver/i2s.h>
 
 // Replace with your actual Edge Impulse library header
-#include <your-ei-project_inferencing.h>
+#include <esp32-audio-classification_inferencing.h>
 
 // ── I2S config ──────────────────────────────────────────────────────────────
 #define I2S_WS    15
