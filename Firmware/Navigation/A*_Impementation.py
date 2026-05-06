@@ -1,23 +1,23 @@
 #actual A* implementation, output route in edges and nodes
 import osmnx as ox
 import heapq
-import haversine_heuristic from heuristic
+from heuristic import haversine_heuristic
 
 
 
 def astar(nodes, adjacency, start, end, G):
     #initialize dicts and lists
     open_list = []
-    closed_list = []
+    closed_list = set()
     f_scores = {}
     g_scores = {}
     came_from = {}
 
 
     #find starting and ending nodes
-    start_lon = start['long']
+    start_lon = start['lon']
     start_lat = start['lat']     
-    end_lon = end['long']
+    end_lon = end['lon']
     end_lat = end['lat']   
     cord2 = (end_lon,end_lat)
     start_node = ox.nearest_nodes(G, X=start_lon, Y=start_lat)
@@ -51,7 +51,7 @@ def astar(nodes, adjacency, start, end, G):
             g_scores[node] = g_scores[q] + edge
 
             #calculate h score
-            cord1 = (node['lat'], node['long'])
+            cord1 = (G.nodes[node]['y'], G.nodes[node]['x'])
             h_score = haversine_heuristic(cord1, cord2)
             #get f score and add to list
             f_scores[node] = g_scores[node] + h_score
@@ -61,6 +61,16 @@ def astar(nodes, adjacency, start, end, G):
 
         #not add q to closed list, open list is ready for next iteration
         closed_list.add(q)
+
+    # If we reach here, no path was found
+    return None
+
+def reconstruct_path(came_from, current):
+    total_path = [current]
+    while current in came_from:
+        current = came_from[current]
+        total_path.append(current)
+    return total_path[::-1]
 
             
 
