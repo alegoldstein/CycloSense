@@ -1,0 +1,4 @@
+(fp_lib_table
+	(version 7)
+	(lib (name "EE327_Symbols") (type "KiCad") (uri "${KIPRJMOD}/EE327_Symbols.pretty") (options "") (descr ""))
+)
