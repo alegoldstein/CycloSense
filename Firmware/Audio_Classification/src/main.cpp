@@ -22,6 +22,7 @@ static bool microphone_inference_record() {
         // ADC gives 0–4095 (12-bit). SPW2430 DC bias is ~0.67V (~830 counts).
         // Subtract bias and scale to int16 range.
         int raw = analogRead(MIC_PIN);
+        // Serial.printf("Sample %4d: raw=%4d\n", i, raw);
         sampleBuffer[i] = (int16_t)((raw - 830) * 32);
 
         // Busy-wait for the remainder of the sample interval
@@ -42,7 +43,7 @@ static int get_signal_data(size_t offset, size_t length, float *out_ptr) {
 void setup() {
     Serial.begin(115200);
     analogReadResolution(12);       // ESP32 ADC: 12-bit
-    analogSetAttenuation(ADC_0db);  // 0db = 0–1.1V range, best for SPW2430's ~0.67V bias
+    analogSetAttenuation(ADC_11db);  // 11db = 0–3.3V range, best for SPW2430's ~0.67V bias
     Serial.println("Edge Impulse keyword spotting — SPW2430 analog mic");
     delay(500);
 }
