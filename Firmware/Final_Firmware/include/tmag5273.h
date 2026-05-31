@@ -14,7 +14,7 @@ typedef struct {
     int16_t x;
     int16_t y;
     int16_t z;
-    int16_t t;
+    int16_t mag;
 } tmag5273_measurement_t;
 
 typedef enum {
@@ -54,3 +54,5 @@ esp_err_t tmag5273_init(i2c_master_bus_handle_t *i2c_bus);
 esp_err_t tmag5273_check_device_id(void);
 
 esp_err_t tmag5273_check_manufacturer_id(void);
+
+esp_err_t tmag5273_read(tmag5273_measurement_t *measurement);
