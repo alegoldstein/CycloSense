@@ -6,7 +6,7 @@
  */
 
 #include "astar_mem.h"
-#include "astar.h"
+#include "Astar.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
