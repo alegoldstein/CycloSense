@@ -24,7 +24,7 @@
  * No FreeRTOS calls; safe to run from any task.
  */
 
-#include "astar.h"
+#include "Astar.h"
 
 #include <stdlib.h>
 #include <stdio.h>

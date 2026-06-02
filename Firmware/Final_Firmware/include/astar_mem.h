@@ -12,7 +12,7 @@
 #define ASTAR_MEM_H
 
 #include <stdint.h>
-#include "astar.h"
+#include "Astar.h"
 
 /**
  * Load a Graph from `buf` (length `len` bytes).
