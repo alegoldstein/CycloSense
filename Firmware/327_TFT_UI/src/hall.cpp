@@ -61,8 +61,8 @@ static int16_t read_z(void) {
 // while still allowing the next spoke to register correctly.
 // ─────────────────────────────────────────────────────────────
 static void hall_poll_task(void*) {
-    const int16_t  THRESHOLD_LSB = 3500;   // 20 mT
-    const uint32_t DEBOUNCE_MS   = 250;    // min ms between valid spikes
+    const int16_t  THRESHOLD_LSB = 2750;   
+    const uint32_t DEBOUNCE_MS   = 125;    // min ms between valid spikes
 
     bool     above           = false;
     int64_t  last_cross_us   = 0;
@@ -94,10 +94,10 @@ static void hall_poll_task(void*) {
                                   z, (float)z / 250.0f);
                 } else {
                     store_u32(&s_last_delta_us, delta_us);
-                    float kmh = (HALL_WHEEL_CIRCUMFERENCE_M / ((float)delta_us * 1e-6f)) * 3.6f;
+                    float mph = (HALL_WHEEL_CIRCUMFERENCE_M / ((float)delta_us * 1e-6f)) * 2.2374f;
                     Serial.printf("[HALL] Spike! Z=%d (%.1f mT)  delta=%lu ms  speed=%.2f mph\n",
-                                  z, (float)z / 250.0f,
-                                  (unsigned long)(delta_us / 1000), kmh);
+                    z, (float)z / 250.0f,
+                    (unsigned long)(delta_us / 1000), mph);
                 }
             } 
         }

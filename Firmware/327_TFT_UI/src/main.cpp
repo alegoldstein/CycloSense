@@ -220,180 +220,187 @@
 //   tft.print(text);
 // }
 
-/*
- * main.cpp — Arduino entry point
- *
- * Runs on Arduino framework so TFT_eSPI works natively.
- * FreeRTOS is still fully available (xTaskCreate etc.)
- *
- * Boot sequence:
- *   1. TFT init + black screen
- *   2. SPIFFS mount
- *   3. A* load graph + find route
- *   4. Draw map centred on map origin
- *   5. loop() updates metrics bar with speed + GPS time
- */
+    /*
+    * main.cpp — Arduino entry point
+    *
+    * Runs on Arduino framework so TFT_eSPI works natively.
+    * FreeRTOS is still fully available (xTaskCreate etc.)
+    *
+    * Boot sequence:
+    *   1. TFT init + black screen
+    *   2. SPIFFS mount
+    *   3. A* load graph + find route
+    *   4. Draw map centred on map origin
+    *   5. loop() updates metrics bar with speed + GPS time
+    */
 
-#include <Arduino.h>
-#include <TFT_eSPI.h>
-#include <SPIFFS.h>
-#include <Wire.h>
+    
+    #include <Arduino.h>
+    #include <TFT_eSPI.h>
+    #include <SPIFFS.h>
+    #include <Wire.h>
+    #include "audio_classifier.h"
+    #include "tft_wrapper.h"
 
-/* C modules wrapped for C++ */
-extern "C" {
-#include "astar.h"
-#include "graphing.h"
-}
+    /* C modules wrapped for C++ */
+    extern "C" {
+    #include "astar.h"
+    #include "graphing.h"
+    }
 
-#include "gps.h"
-#include "hall.h"
+    #include "gps.h"
+    #include "hall.h"
 
-/* -------------------------------------------------------------------------
- * Globals shared with graphing.c
- * ---------------------------------------------------------------------- */
-TFT_eSPI tft = TFT_eSPI();
+    /* -------------------------------------------------------------------------
+     * Globals shared with graphing.c
+     * ---------------------------------------------------------------------- */
+    TFT_eSPI tft = TFT_eSPI();
 
-Graph     g_graph;
-uint32_t *g_path     = NULL;
-int       g_path_len = 0;
+    Graph     g_graph;
+    uint32_t *g_path     = NULL;
+    int       g_path_len = 0;
 
-#define ROUTE_START_NODE  7751u
-#define ROUTE_END_NODE    2377u
-#define MAX_PATH          2048
+    #define ROUTE_START_NODE  7751u
+    #define ROUTE_END_NODE    2377u
+    #define MAX_PATH          2048
 
-/* -------------------------------------------------------------------------
- * GPS shared state — written by GPS task, read by loop()
- * ---------------------------------------------------------------------- */
-static GPS_data   s_gps      = {};
-static portMUX_TYPE s_gps_mux = portMUX_INITIALIZER_UNLOCKED;
+    /* -------------------------------------------------------------------------
+     * GPS shared state — written by GPS task, read by loop()
+     * ---------------------------------------------------------------------- */
+    static GPS_data   s_gps      = {};
+    static portMUX_TYPE s_gps_mux = portMUX_INITIALIZER_UNLOCKED;
 
-static void gps_task(void *pv)
-{
-    char buf[128];
-    while (1) {
-        if (gps_read_line(buf, sizeof(buf), 1100) > 0) {
-            GPS_data tmp = {};
-            if (gps_parse(buf, &tmp)) {
-                portENTER_CRITICAL(&s_gps_mux);
-                s_gps = tmp;
-                portEXIT_CRITICAL(&s_gps_mux);
+    static void gps_task(void *pv)
+    {
+        char buf[128];
+        while (1) {
+            if (gps_read_line(buf, sizeof(buf), 1100) > 0) {
+                GPS_data tmp = {};
+                if (gps_parse(buf, &tmp)) {
+                    portENTER_CRITICAL(&s_gps_mux);
+                    s_gps = tmp;
+                    portEXIT_CRITICAL(&s_gps_mux);
+                }
             }
         }
     }
-}
 
-/* -------------------------------------------------------------------------
- * setup()
- * ---------------------------------------------------------------------- */
-void setup()
-{
-    Serial.begin(115200);
-    delay(2000);
+    /* -------------------------------------------------------------------------
+     * setup()
+     * ---------------------------------------------------------------------- */
+    void setup()
+    {
+        Serial.begin(115200);
+        delay(2000);
 
-    /* TFT */
-    tft.init();
-    tft.setRotation(2);
-    tft.fillScreen(TFT_BLACK);
-    Serial.println("TFT ready");
+        /* TFT */
+        tft.init();
+        tft.setRotation(2);
+        tft.fillScreen(TFT_BLACK);
+        Serial.println("TFT ready");
 
-    /* I2C for hall sensor */
-    Wire.begin(21, 22);
-    Wire.setClock(HALL_I2C_SCL_SPEED);
-    hall_init(5);
+        Wire.begin(21, 22);
+        Wire.setClock(HALL_I2C_SCL_SPEED);
+        hall_init(5);
 
-    /* GPS */
-    gps_init();
-    gps_set_mode(GPS_RMC | GPS_GGA, 1);
-    gps_set_update_rate(1000);
-    xTaskCreate(gps_task, "gps", 4096, NULL, 4, NULL);
+        gps_init();
+        gps_set_mode(GPS_RMC | GPS_GGA, 1);
+        gps_set_update_rate(1000);
+        xTaskCreate(gps_task, "gps", 4096, NULL, 4, NULL);
 
-    /* SPIFFS */
-    if (!SPIFFS.begin(true)) {
-        Serial.println("SPIFFS mount failed");
-        return;
-    }
-    Serial.println("SPIFFS mounted");
+        if (!SPIFFS.begin(true)) { Serial.println("SPIFFS failed"); return; }
+        Serial.println("SPIFFS mounted");
 
-    /* Load graph */
-    if (astar_load_graph(&g_graph, "/spiffs/graph.bin") != 0) {
-        Serial.println("graph load failed");
-        return;
-    }
-    Serial.printf("graph: %lu nodes\n", (unsigned long)g_graph.node_count);
-
-    /* A* */
-    g_path = (uint32_t *)malloc(MAX_PATH * sizeof(uint32_t));
-    if (!g_path) { Serial.println("OOM path"); return; }
-
-    unsigned long t0 = millis();
-    g_path_len = astar_find(&g_graph, ROUTE_START_NODE, ROUTE_END_NODE,
-                            g_path, MAX_PATH);
-    Serial.printf("route: %d nodes in %lu ms\n",
-                  g_path_len, millis() - t0);
-
-    if (g_path_len < 0) {
-        Serial.printf("astar_find failed: %d\n", g_path_len);
-        return;
-    }
-
-    /* Draw initial map */
-    draw_background(&g_graph);
-    draw_route(&g_graph, g_path, g_path_len);
-    tft.fillCircle(120, 120, 5, TFT_RED);
-    tft.drawFastHLine(0, 240, 240, TFT_WHITE);  // separator line
-    tft.fillRect(0, 241, 240, 79, TFT_BLACK);   // clear metrics area once
-    draw_metrics(0, 0, 0);
-
-    draw_metrics(0, 0, 0);
-    Serial.println("display ready");
-}
-
-/* -------------------------------------------------------------------------
- * loop() — update metrics bar ~4 Hz
- * ---------------------------------------------------------------------- */
-void loop()
-{
-    static unsigned long last_update = 0;
-    static uint32_t last_spd = 9999;
-
-    if (millis() - last_update < 250) return;
-    last_update = millis();
-
-    float speed_kmh = hall_get_speed_kmh();
-    uint32_t spd = (uint32_t)(speed_kmh + 0.5f);
-
-    portENTER_CRITICAL(&s_gps_mux);
-    GPS_data gps = s_gps;
-    portEXIT_CRITICAL(&s_gps_mux);
-
-    if (spd != last_spd) {
-        last_spd = spd;
-
-        /* clear metrics bar */
-        tft.fillRect(0, 241, 240, 79, TFT_BLACK);
-
-        /* large speed number — centered */
-        char spd_str[16];
-        snprintf(spd_str, sizeof(spd_str), "%.1f", speed_kmh);
-        tft.setTextSize(4);
-        tft.setTextColor(speed_kmh > 0.0f ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
-        tft.setCursor((240 - tft.textWidth(spd_str)) / 2, 248);
-        tft.print(spd_str);
-
-        /* km/h label below number */
-        tft.setTextSize(2);
-        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-        tft.setCursor(10, 292);
-        tft.print("mph");
-
-        /* GPS time bottom right if valid */
-        if (gps.valid) {
-            char time_str[12];
-            snprintf(time_str, sizeof(time_str), "%02u:%02u", gps.hours, gps.minutes);
-            tft.setTextSize(2);
-            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-            tft.setCursor(170, 292);
-            tft.print(time_str);
+        if (astar_load_graph(&g_graph, "/spiffs/graph.bin") != 0) {
+            Serial.println("graph load failed"); return;
         }
+
+        g_path = (uint32_t *)malloc(MAX_PATH * sizeof(uint32_t));
+        g_path_len = astar_find(&g_graph, ROUTE_START_NODE, ROUTE_END_NODE,
+                                g_path, MAX_PATH);
+
+        draw_background(&g_graph);
+        draw_route(&g_graph, g_path, g_path_len);
+        tft.fillCircle(120, 120, 5, TFT_RED);
+        tft.drawFastHLine(0, 240, 240, TFT_BLUE);
+        tft.fillRect(0, 241, 240, 79, TFT_BLACK);
+        draw_metrics(0, 0, 0);
+
+        Serial.println("display ready");
     }
-}
+    /* -------------------------------------------------------------------------
+     * loop() — update metrics bar ~4 Hz
+     * ---------------------------------------------------------------------- */
+    /*
+     * Replace your existing loop() in main.cpp with this.
+     * Also add to setup():  audio_classifier_init();
+     * And at top of main.cpp:  #include "audio_classifier.h"
+     */
+
+    void loop()
+    {
+       
+        static unsigned long last_update    = 0;
+        static uint32_t      last_spd       = 9999;
+        static bool          last_squeak    = false;
+
+        if (millis() - last_update < 250) return;
+        last_update = millis();
+
+        /* ------------------------------------------------------------------ */
+        /* Squeak warning banner — top of map                                  */
+        /* ------------------------------------------------------------------ */
+        bool squeak = g_squeak_detected;
+        if (squeak != last_squeak) {
+            last_squeak = squeak;
+            tft_show_squeak_warning(squeak);
+            Serial.printf("[DISPLAY] Squeak banner: %s\n", squeak ? "ON" : "OFF");
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Metrics bar — speed + GPS time                                      */
+        /* ------------------------------------------------------------------ */
+        float speed_mph = hall_get_speed_kmh();  // returns mph despite the name
+        uint32_t spd = (uint32_t)(speed_mph + 0.5f);
+
+        portENTER_CRITICAL(&s_gps_mux);
+        GPS_data gps = s_gps;
+        portEXIT_CRITICAL(&s_gps_mux);
+
+        if (spd != last_spd) {
+            last_spd = spd;
+
+            tft.fillRect(0, 241, 240, 79, TFT_BLACK);
+
+            /* large speed number */
+            char spd_str[16];
+            snprintf(spd_str, sizeof(spd_str), "%.1f", speed_mph);
+            tft.setTextFont(4);
+            tft.setTextColor(speed_mph > 0.0f ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
+            tft.setCursor(10, 248);
+            tft.print(spd_str);
+
+            /* mph label */
+            tft.setTextFont(1);
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setCursor(10, 292);
+            tft.print("mph");
+
+            /* GPS time bottom right if valid */
+            if (gps.valid) {
+                char time_str[12];
+                snprintf(time_str, sizeof(time_str), "%02u:%02u", gps.hours, gps.minutes);
+                tft.setTextFont(2);
+                tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+                tft.setCursor(170, 292);
+                tft.print(time_str);
+            }
+
+            // Serial.printf("[DISPLAY] speed=%.1f mph  squeak=%.2f  normal=%.2f\n",
+            //               speed_mph, (float)g_squeak_confidence, (float)g_normal_confidence);
+            // Serial.printf("[DISPLAY] speed=%.1f mph ",
+            //               speed_mph);
+        }
+
+    }
+// 

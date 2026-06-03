@@ -22,10 +22,25 @@ void tft_fill_circle(int cx, int cy, int r, uint16_t color)
 
 void tft_draw_string(int x, int y, const char *str, uint16_t color, uint8_t size)
 {
-    tft.setTextColor(color, TFT_BLACK);  // second arg = background
+    tft.setTextColor(color, TFT_BLACK);
+    tft.setTextFont(2);
     tft.setTextSize(size);
     tft.setCursor(x, y);
     tft.print(str);
+}
+
+void tft_show_squeak_warning(int active)
+{
+    if (active) {
+        tft.fillRect(0, 0, 240, 22, TFT_RED);
+        tft.setTextColor(TFT_WHITE, TFT_RED);
+        tft.setTextFont(2);
+        tft.setTextSize(1);
+        tft.setCursor((240 - tft.textWidth("!! BRAKE SQUEAK !!")) / 2, 4);
+        tft.print("!! BRAKE SQUEAK !!");
+    } else {
+        tft.fillRect(0, 0, 240, 22, TFT_BLACK);
+    }
 }
 
 } /* extern "C" */

@@ -81,8 +81,8 @@ void draw_background(const Graph *g)
 
             if (y0 >= MAP_HEIGHT && y1 >= MAP_HEIGHT) continue;
 
-            tft_draw_line(x0, y0, x1, y1, COLOR_DARKGREY);
-            tft_draw_line(x0+1, y0+1, x1+1, y1+1, COLOR_DARKGREY);
+            tft_draw_line(x0, y0, x1, y1, COLOR_WHITE);
+            tft_draw_line(x0+1, y0+1, x1+1, y1+1, COLOR_WHITE);
         }
     }
 
@@ -141,7 +141,6 @@ void draw_metrics(uint32_t speed_kmh, uint8_t hours, uint8_t minutes)
     /* speed — always shows "Speed: X km/h" */
     snprintf(buf, sizeof(buf), "Speed:%3lu km/h", (unsigned long)speed_kmh);
     tft_draw_string(5, METRICS_Y + 10, buf, COLOR_RED, 5);
-    tft_draw_string(5, METRICS_Y + 25, "worok", COLOR_RED, 5);
     tft_fill_circle(5,280,5,COLOR_RED);
     printf("drawing metrics\n");
 

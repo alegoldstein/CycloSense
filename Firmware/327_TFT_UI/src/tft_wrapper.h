@@ -19,6 +19,7 @@ void tft_fill_rect(int x0, int y0, int w, int h, uint16_t color);
 void tft_draw_line(int x0, int y0, int x1, int y1, uint16_t color);
 void tft_fill_circle(int cx, int cy, int r, uint16_t color);
 void tft_draw_string(int x, int y, const char *str, uint16_t color, uint8_t size);
+void tft_show_squeak_warning(int active);   /* int instead of bool for C compat */
 
 #ifdef __cplusplus
 }
