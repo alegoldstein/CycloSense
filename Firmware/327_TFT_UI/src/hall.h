@@ -1,13 +1,17 @@
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// hall.cpp/.h must be compiled as C++ (rename hall.c → hall.cpp) because
+// Wire.h is a C++ header. The public API is wrapped in extern "C" so it
+// can be called from plain C translation units if needed.
 
 #include <stdint.h>
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // ── I2C / Device config ───────────────────────────────────────
 #define HALL_I2C_ADDRESS        0x35
@@ -17,12 +21,12 @@ extern "C" {
 #define HALL_INT_GPIO           4
 
 // TMAG5273 Z-axis threshold (6-bit value written to Z_THR_CONFIG)
-#define HALL_Z_THRESHOLD        0x40
+#define HALL_Z_THRESHOLD        0x02   // 2.06 mT — above noise (0.7mT), below spoke magnet peak (~4mT)
 
 // ── Wheel geometry ────────────────────────────────────────────
 // One TMAG5273 interrupt fires per spoke magnet pass = one wheel revolution.
 // Set to your actual wheel circumference in metres.
-#define HALL_WHEEL_CIRCUMFERENCE_M  2.1f   // 700c road wheel (~2.1 m)
+#define HALL_WHEEL_CIRCUMFERENCE_M  2.18f   // 700x35C
 
 // Zero speed after this many ms without a pulse
 #define HALL_SPEED_TIMEOUT_MS   3000

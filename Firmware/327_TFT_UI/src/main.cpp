@@ -1,219 +1,399 @@
+// #include <Arduino.h>
+// #include <TFT_eSPI.h>
+// #include <SPI.h>
+// #include <Wire.h>
+// #include <math.h>
+
+// extern "C" {
+//   #include "gps.h"
+//   #include "hall.h"
+// }
+
+// TFT_eSPI tft = TFT_eSPI();
+
+// // ── Pin config ────────────────────────────────────────────────
+// #define I2C_SDA     21
+// #define I2C_SCL     22
+
+// // ── Screen (portrait) ─────────────────────────────────────────
+// #define SCREEN_W    240
+// #define SCREEN_H    320
+
+// // ── Timing ────────────────────────────────────────────────────
+// #define LOOP_PERIOD      35
+// #define SPEED_REFRESH_MS 150
+
+// // ── Layout ────────────────────────────────────────────────────
+// #define HEADER_Y      8
+// #define DIVIDER_Y    28
+
+// // Speed block (always visible, top half)
+// #define SPEED_Y      55
+// #define UNIT_Y      115
+// #define SPD_DIVIDER 145
+
+// // GPS block (bottom half, shown when fix available)
+// #define GPS_ROW_START  155
+// #define GPS_ROW_H       30
+// #define GPS_LABEL_X      8
+// #define GPS_VALUE_X     60
+
+// // ── Prototypes ────────────────────────────────────────────────
+// void centerText(const char* text, int size, uint16_t fg, uint16_t bg, int cx, int cy);
+// void drawHeader();
+// void drawSpeedBlock();
+// void drawGPSBlock(GPS_data &data);
+// void clearGPSBlock();
+
+// // ─────────────────────────────────────────────────────────────
+// // Setup
+// // ─────────────────────────────────────────────────────────────
+// void setup() {
+//   Serial.begin(115200);
+
+//   tft.init();
+//   tft.setRotation(2);           // portrait — unchanged
+//   tft.fillScreen(TFT_BLACK);
+//   drawHeader();
+
+//   Wire.begin(I2C_SDA, I2C_SCL);
+//   Wire.setClock(100000);
+
+//   esp_err_t ret = hall_init(5);
+//   if (ret != ESP_OK) {
+//     Serial.printf("[ERROR] hall_init failed: 0x%X\n", ret);
+//     tft.setTextSize(1);
+//     tft.setTextColor(TFT_RED, TFT_BLACK);
+//     tft.setCursor(8, DIVIDER_Y + 6);
+//     tft.print("SENSOR INIT FAIL");
+//   } else {
+//     Serial.println("[OK] TMAG5273 ready");
+//   }
+
+//   gps_init();
+//   delay(100);
+//   gps_set_mode(GPS_RMC | GPS_GGA, 1);
+//   gps_set_update_rate(1000);
+
+//   Serial.println("=== TRACKER READY ===");
+// }
+
+// // ─────────────────────────────────────────────────────────────
+// // Loop
+// // ─────────────────────────────────────────────────────────────
+// void loop() {
+//   static GPS_data  data        = {};
+//   static bool      hasFix      = false;
+//   static uint32_t  lastSpeedDraw = 0;
+
+//   // ── Speed block: refresh at SPEED_REFRESH_MS ─────────────
+//   if (millis() - lastSpeedDraw >= SPEED_REFRESH_MS) {
+//     lastSpeedDraw = millis();
+//     drawSpeedBlock();
+//   }
+
+//   // ── GPS: parse when available, update bottom block ────────
+//   char line[128];
+//   if (gps_read_line(line, sizeof(line), LOOP_PERIOD) > 0) {
+//     Serial.printf("[NMEA] %s\n", line);
+//     if (gps_parse(line, &data)) {
+//       if (data.valid && !hasFix) {
+//         // Just got fix — draw GPS section for first time
+//         hasFix = true;
+//         tft.drawFastHLine(0, SPD_DIVIDER, SCREEN_W, TFT_YELLOW);
+//       } else if (!data.valid && hasFix) {
+//         // Lost fix — clear GPS section
+//         hasFix = false;
+//         clearGPSBlock();
+//       }
+//       if (data.valid) {
+//         drawGPSBlock(data);
+//       }
+//     }
+//   }
+
+//   delay(LOOP_PERIOD);
+// }
+
+// // ─────────────────────────────────────────────────────────────
+// // Header (drawn once at startup)
+// // ─────────────────────────────────────────────────────────────
+// void drawHeader() {
+//   tft.fillRect(0, 0, SCREEN_W, DIVIDER_Y + 1, TFT_BLACK);
+//   centerText("WHEEL SPEED", 2, TFT_YELLOW, TFT_BLACK, SCREEN_W / 2, HEADER_Y);
+//   tft.drawFastHLine(0, DIVIDER_Y, SCREEN_W, TFT_YELLOW);
+// }
+
+// // ─────────────────────────────────────────────────────────────
+// // Speed block — Hall sensor, always shown, refreshes independently
+// // ─────────────────────────────────────────────────────────────
+// void drawSpeedBlock() {
+//   float    kmh   = hall_get_speed_kmh();
+//   uint32_t delta = hall_get_last_delta_us();
+
+//   // Clear speed area
+//   tft.fillRect(0, DIVIDER_Y + 1, SCREEN_W, SPD_DIVIDER - DIVIDER_Y - 1, TFT_BLACK);
+
+//   // Large speed number
+//   char spd[16];
+//   snprintf(spd, sizeof(spd), "%.1f", kmh);
+//   tft.setTextSize(6);
+//   tft.setTextColor(kmh > 0.0f ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
+//   tft.setCursor((SCREEN_W - tft.textWidth(spd)) / 2, SPEED_Y);
+//   tft.print(spd);
+
+//   // km/h label
+//   tft.setTextSize(2);
+//   tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+//   tft.setCursor((SCREEN_W - tft.textWidth("mph")) / 2, UNIT_Y);
+//   tft.print("mph");
+
+//   // REV period (small, right-aligned under unit)
+//   char rev[20];
+//   if (delta > 0)
+//     snprintf(rev, sizeof(rev), "rev %lu ms", (unsigned long)(delta / 1000));
+//   else
+//     snprintf(rev, sizeof(rev), "no pulse");
+//   tft.setTextSize(1);
+//   tft.setTextColor(kmh > 0.0f ? TFT_GREEN : 0x4208, TFT_BLACK);
+//   tft.setCursor((SCREEN_W - tft.textWidth(rev)) / 2, UNIT_Y + 20);
+//   tft.print(rev);
+
+//   Serial.printf("[HALL] %.1f km/h  delta=%lu us\n", kmh, (unsigned long)delta);
+// }
+
+// // ─────────────────────────────────────────────────────────────
+// // GPS block — only drawn when fix is valid
+// // ─────────────────────────────────────────────────────────────
+// void drawGPSBlock(GPS_data &data) {
+//   // Rows: LAT, LON, SAT, UTC
+//   struct { const char* label; char value[32]; } rows[4];
+
+//   snprintf(rows[0].value, sizeof(rows[0].value), "%.5f %c",
+//            fabs(data.latitude),  data.latitude  >= 0 ? 'N' : 'S');
+//   rows[0].label = "LAT";
+
+//   snprintf(rows[1].value, sizeof(rows[1].value), "%.5f %c",
+//            fabs(data.longitude), data.longitude >= 0 ? 'E' : 'W');
+//   rows[1].label = "LON";
+
+//   snprintf(rows[2].value, sizeof(rows[2].value), "%d sats", data.satellites);
+//   rows[2].label = "SAT";
+
+//   snprintf(rows[3].value, sizeof(rows[3].value), "%02d:%02d:%02d",
+//            data.hours, data.minutes, data.seconds);
+//   rows[3].label = "UTC";
+
+//   for (int i = 0; i < 4; i++) {
+//     int y = GPS_ROW_START + i * GPS_ROW_H;
+
+//     tft.fillRect(0, y, SCREEN_W, GPS_ROW_H - 2, TFT_BLACK);
+
+//     tft.setTextSize(2);
+//     tft.setTextColor(0x8400, TFT_BLACK);   // amber label
+//     tft.setCursor(GPS_LABEL_X, y + 4);
+//     tft.print(rows[i].label);
+
+//     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+//     tft.setCursor(GPS_VALUE_X, y + 4);
+//     tft.print(rows[i].value);
+
+//     if (i < 3) tft.drawFastHLine(0, y + GPS_ROW_H - 2, SCREEN_W, 0x2104);
+//   }
+// }
+
+// // ─────────────────────────────────────────────────────────────
+// // Clear GPS block when fix is lost
+// // ─────────────────────────────────────────────────────────────
+// void clearGPSBlock() {
+//   tft.fillRect(0, SPD_DIVIDER, SCREEN_W, SCREEN_H - SPD_DIVIDER, TFT_BLACK);
+//   centerText("NO GPS FIX", 2, 0x4208, TFT_BLACK, SCREEN_W / 2, GPS_ROW_START + 20);
+// }
+
+// // ─────────────────────────────────────────────────────────────
+// // Helper
+// // ─────────────────────────────────────────────────────────────
+// void centerText(const char* text, int size, uint16_t fg, uint16_t bg, int cx, int cy) {
+//   tft.setTextColor(fg, bg);
+//   tft.setTextSize(size);
+//   tft.setCursor(cx - (tft.textWidth(text) / 2), cy);
+//   tft.print(text);
+// }
+
+/*
+ * main.cpp — Arduino entry point
+ *
+ * Runs on Arduino framework so TFT_eSPI works natively.
+ * FreeRTOS is still fully available (xTaskCreate etc.)
+ *
+ * Boot sequence:
+ *   1. TFT init + black screen
+ *   2. SPIFFS mount
+ *   3. A* load graph + find route
+ *   4. Draw map centred on map origin
+ *   5. loop() updates metrics bar with speed + GPS time
+ */
+
 #include <Arduino.h>
 #include <TFT_eSPI.h>
-#include <SPI.h>
+#include <SPIFFS.h>
 #include <Wire.h>
-#include <math.h>
 
+/* C modules wrapped for C++ */
 extern "C" {
-  #include "gps.h"
-  #include "hall.h"
+#include "astar.h"
+#include "graphing.h"
 }
 
+#include "gps.h"
+#include "hall.h"
+
+/* -------------------------------------------------------------------------
+ * Globals shared with graphing.c
+ * ---------------------------------------------------------------------- */
 TFT_eSPI tft = TFT_eSPI();
 
-// ── Pin config — adjust SDA/SCL to match your wiring ─────────
-#define I2C_SDA     21
-#define I2C_SCL     22
+Graph     g_graph;
+uint32_t *g_path     = NULL;
+int       g_path_len = 0;
 
-#define LOOP_PERIOD 35
-#define SCREEN_W    320
-#define SCREEN_H    240
+#define ROUTE_START_NODE  7751u
+#define ROUTE_END_NODE    2377u
+#define MAX_PATH          2048
 
-// ── Row layout ────────────────────────────────────────────────
-#define ROW_START   55
-#define ROW_H       30
-#define LABEL_X     8
-#define VALUE_X     60
-#define BADGE_X     240
+/* -------------------------------------------------------------------------
+ * GPS shared state — written by GPS task, read by loop()
+ * ---------------------------------------------------------------------- */
+static GPS_data   s_gps      = {};
+static portMUX_TYPE s_gps_mux = portMUX_INITIALIZER_UNLOCKED;
 
-// ── Prototypes ────────────────────────────────────────────────
-void centerText(const char* text, int size, uint16_t fg, uint16_t bg, int cx, int cy);
-void drawHeader();
-void drawNoFix();
-void drawSpeedBadge(bool fromHall, int y);
-void drawGPSDisplay(GPS_data &data);
-void drawInitError(const char* msg);
-
-// ─────────────────────────────────────────────────────────────
-// Setup
-// ─────────────────────────────────────────────────────────────
-void setup() {
-  Serial.begin(115200);
-
-  // ── TFT ──────────────────────────────────────────────────
-  tft.init();
-  tft.setRotation(2);
-  tft.fillScreen(TFT_BLACK);
-  drawHeader();
-
-  // ── I2C via Arduino Wire (no ESP-IDF I2C driver conflict) ─
-  Wire.begin(I2C_SDA, I2C_SCL);
-  Wire.setClock(100000);
-
-  // ── Hall / TMAG5273 ───────────────────────────────────────
-  // hall_init() creates the FreeRTOS spike task, verifies the device
-  // over Wire, configures TMAG5273 registers, and installs the GPIO ISR.
-  esp_err_t hall_ret = hall_init(5);
-  if (hall_ret != ESP_OK) {
-    Serial.printf("[ERROR] hall_init failed: 0x%X\n", hall_ret);
-    drawInitError("HALL INIT FAIL");
-    // Continue anyway — GPS will still work, speed shows GPS fallback
-  } else {
-    Serial.println("[OK] TMAG5273 ready");
-  }
-
-  // ── GPS ───────────────────────────────────────────────────
-  gps_init();
-  delay(100);
-  gps_set_mode(GPS_RMC | GPS_GGA, 1);
-  gps_set_update_rate(1000);
-  drawNoFix();
-
-  Serial.println("=== GPS + WHEEL TRACKER READY ===");
-}
-
-// ─────────────────────────────────────────────────────────────
-// Loop
-// ─────────────────────────────────────────────────────────────
-void loop() {
-  static GPS_data data = {};
-  char line[128];
-  if (gps_read_line(line, sizeof(line), LOOP_PERIOD) > 0) {
-    Serial.printf("[NMEA] %s\n", line);
-    if (gps_parse(line, &data)) {
-      drawGPSDisplay(data);
+static void gps_task(void *pv)
+{
+    char buf[128];
+    while (1) {
+        if (gps_read_line(buf, sizeof(buf), 1100) > 0) {
+            GPS_data tmp = {};
+            if (gps_parse(buf, &tmp)) {
+                portENTER_CRITICAL(&s_gps_mux);
+                s_gps = tmp;
+                portEXIT_CRITICAL(&s_gps_mux);
+            }
+        }
     }
-  }
-  delay(LOOP_PERIOD);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Header
-// ─────────────────────────────────────────────────────────────
-void drawHeader() {
-  tft.fillScreen(TFT_BLACK);
-  tft.drawFastHLine(0, 18, SCREEN_W, TFT_YELLOW);
-  centerText("GPS + WHEEL TRACKER", 2, TFT_YELLOW, TFT_BLACK, SCREEN_W / 2, 3);
+/* -------------------------------------------------------------------------
+ * setup()
+ * ---------------------------------------------------------------------- */
+void setup()
+{
+    Serial.begin(115200);
+    delay(2000);
+
+    /* TFT */
+    tft.init();
+    tft.setRotation(2);
+    tft.fillScreen(TFT_BLACK);
+    Serial.println("TFT ready");
+
+    /* I2C for hall sensor */
+    Wire.begin(21, 22);
+    Wire.setClock(HALL_I2C_SCL_SPEED);
+    hall_init(5);
+
+    /* GPS */
+    gps_init();
+    gps_set_mode(GPS_RMC | GPS_GGA, 1);
+    gps_set_update_rate(1000);
+    xTaskCreate(gps_task, "gps", 4096, NULL, 4, NULL);
+
+    /* SPIFFS */
+    if (!SPIFFS.begin(true)) {
+        Serial.println("SPIFFS mount failed");
+        return;
+    }
+    Serial.println("SPIFFS mounted");
+
+    /* Load graph */
+    if (astar_load_graph(&g_graph, "/spiffs/graph.bin") != 0) {
+        Serial.println("graph load failed");
+        return;
+    }
+    Serial.printf("graph: %lu nodes\n", (unsigned long)g_graph.node_count);
+
+    /* A* */
+    g_path = (uint32_t *)malloc(MAX_PATH * sizeof(uint32_t));
+    if (!g_path) { Serial.println("OOM path"); return; }
+
+    unsigned long t0 = millis();
+    g_path_len = astar_find(&g_graph, ROUTE_START_NODE, ROUTE_END_NODE,
+                            g_path, MAX_PATH);
+    Serial.printf("route: %d nodes in %lu ms\n",
+                  g_path_len, millis() - t0);
+
+    if (g_path_len < 0) {
+        Serial.printf("astar_find failed: %d\n", g_path_len);
+        return;
+    }
+
+    /* Draw initial map */
+    draw_background(&g_graph);
+    draw_route(&g_graph, g_path, g_path_len);
+    tft.fillCircle(120, 120, 5, TFT_RED);
+    tft.drawFastHLine(0, 240, 240, TFT_WHITE);  // separator line
+    tft.fillRect(0, 241, 240, 79, TFT_BLACK);   // clear metrics area once
+    draw_metrics(0, 0, 0);
+
+    draw_metrics(0, 0, 0);
+    Serial.println("display ready");
 }
 
-// ─────────────────────────────────────────────────────────────
-// No fix screen
-// ─────────────────────────────────────────────────────────────
-void drawNoFix() {
-  tft.fillRect(0, 20, SCREEN_W, SCREEN_H - 20, TFT_BLACK);
-  centerText("NO FIX", 3, TFT_YELLOW, TFT_BLACK, SCREEN_W / 2, SCREEN_H / 2 - 12);
-  Serial.println("[STATUS] Waiting for GPS fix...");
-}
+/* -------------------------------------------------------------------------
+ * loop() — update metrics bar ~4 Hz
+ * ---------------------------------------------------------------------- */
+void loop()
+{
+    static unsigned long last_update = 0;
+    static uint32_t last_spd = 9999;
 
-// ─────────────────────────────────────────────────────────────
-// Init error screen (non-fatal — shows message, keeps running)
-// ─────────────────────────────────────────────────────────────
-void drawInitError(const char* msg) {
-  tft.fillRect(0, 20, SCREEN_W, 30, TFT_BLACK);
-  tft.setTextSize(1);
-  tft.setTextColor(TFT_RED, TFT_BLACK);
-  tft.setCursor(LABEL_X, 24);
-  tft.print(msg);
-}
+    if (millis() - last_update < 250) return;
+    last_update = millis();
 
-// ─────────────────────────────────────────────────────────────
-// Speed source badge  WHL (cyan) = Hall sensor   GPS (dim) = fallback
-// ─────────────────────────────────────────────────────────────
-void drawSpeedBadge(bool fromHall, int y) {
-  tft.setTextSize(1);
-  if (fromHall) {
-    tft.setTextColor(TFT_CYAN, TFT_BLACK);
-    tft.setCursor(BADGE_X, y + 4);
-    tft.print("WHL");
-  } else {
-    tft.setTextColor(0x4208, TFT_BLACK);  // dim grey
-    tft.setCursor(BADGE_X, y + 4);
-    tft.print("GPS");
-  }
-}
+    float speed_kmh = hall_get_speed_kmh();
+    uint32_t spd = (uint32_t)(speed_kmh + 0.5f);
 
-// ─────────────────────────────────────────────────────────────
-// Main display
-// ─────────────────────────────────────────────────────────────
-void drawGPSDisplay(GPS_data &data) {
-  tft.fillRect(0, 20, SCREEN_W, SCREEN_H - 20, TFT_BLACK);
+    portENTER_CRITICAL(&s_gps_mux);
+    GPS_data gps = s_gps;
+    portEXIT_CRITICAL(&s_gps_mux);
 
-  // Fix badge — top right
-  const char* fixStr = data.valid ? "FIX" : "---";
-  tft.setTextSize(2);
-  tft.setTextColor(data.valid ? TFT_GREEN : TFT_RED, TFT_BLACK);
-  tft.setCursor(SCREEN_W - 48, 3);
-  tft.print(fixStr);
+    if (spd != last_spd) {
+        last_spd = spd;
 
-  tft.drawFastHLine(0, 18, SCREEN_W, TFT_YELLOW);
+        /* clear metrics bar */
+        tft.fillRect(0, 241, 240, 79, TFT_BLACK);
 
-  // ── Speed source: Hall if available, else GPS ─────────────
-  float hall_kmh = hall_get_speed_kmh();
-  bool  useHall  = (hall_kmh > 0.0f);
-  float disp_kmh = useHall ? hall_kmh : (data.speed_knots * 1.852f);
+        /* large speed number — centered */
+        char spd_str[16];
+        snprintf(spd_str, sizeof(spd_str), "%.1f", speed_kmh);
+        tft.setTextSize(4);
+        tft.setTextColor(speed_kmh > 0.0f ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
+        tft.setCursor((240 - tft.textWidth(spd_str)) / 2, 248);
+        tft.print(spd_str);
 
-  // ── Rows ──────────────────────────────────────────────────
-  struct Row { const char* label; char value[32]; } rows[6];
+        /* km/h label below number */
+        tft.setTextSize(2);
+        tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+        tft.setCursor(10, 292);
+        tft.print("mph");
 
-  snprintf(rows[0].value, sizeof(rows[0].value), "%.5f %c",
-           fabs(data.latitude),  data.latitude  >= 0 ? 'N' : 'S');
-  rows[0].label = "LAT";
-
-  snprintf(rows[1].value, sizeof(rows[1].value), "%.5f %c",
-           fabs(data.longitude), data.longitude >= 0 ? 'E' : 'W');
-  rows[1].label = "LON";
-
-  snprintf(rows[2].value, sizeof(rows[2].value), "%.1f km/h", disp_kmh);
-  rows[2].label = "SPD";
-
-  snprintf(rows[3].value, sizeof(rows[3].value), "%d sats", data.satellites);
-  rows[3].label = "SAT";
-
-  snprintf(rows[4].value, sizeof(rows[4].value), "%02d:%02d:%02d",
-           data.hours, data.minutes, data.seconds);
-  rows[4].label = "UTC";
-
-  // REV row: last revolution period in ms (diagnostic)
-  uint32_t delta_us = hall_get_last_delta_us();
-  if (delta_us > 0)
-    snprintf(rows[5].value, sizeof(rows[5].value), "%lu ms", (unsigned long)(delta_us / 1000));
-  else
-    snprintf(rows[5].value, sizeof(rows[5].value), "---");
-  rows[5].label = "REV";
-
-  // ── Draw ──────────────────────────────────────────────────
-  for (int i = 0; i < 6; i++) {
-    int y = ROW_START + i * ROW_H;
-
-    tft.setTextSize(2);
-    tft.setTextColor(0x8400, TFT_BLACK);   // amber label
-    tft.setCursor(LABEL_X, y);
-    tft.print(rows[i].label);
-
-    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-    tft.setCursor(VALUE_X, y);
-    tft.print(rows[i].value);
-
-    if (i == 2) drawSpeedBadge(useHall, y);
-
-    if (i < 5) tft.drawFastHLine(0, y + 22, SCREEN_W, 0x2104);
-  }
-
-  // ── Serial mirror ─────────────────────────────────────────
-  Serial.println("---------------------");
-  Serial.printf("  FIX    : %s\n", fixStr);
-  for (int i = 0; i < 6; i++)
-    Serial.printf("  %-4s   : %s\n", rows[i].label, rows[i].value);
-  Serial.printf("  SPD SRC : %s\n", useHall ? "HALL" : "GPS");
-  Serial.println("---------------------");
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────
-void centerText(const char* text, int size, uint16_t fg, uint16_t bg, int cx, int cy) {
-  tft.setTextColor(fg, bg);
-  tft.setTextSize(size);
-  tft.setCursor(cx - (tft.textWidth(text) / 2), cy);
-  tft.print(text);
+        /* GPS time bottom right if valid */
+        if (gps.valid) {
+            char time_str[12];
+            snprintf(time_str, sizeof(time_str), "%02u:%02u", gps.hours, gps.minutes);
+            tft.setTextSize(2);
+            tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+            tft.setCursor(170, 292);
+            tft.print(time_str);
+        }
+    }
 }
