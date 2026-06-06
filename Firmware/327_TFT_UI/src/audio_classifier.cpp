@@ -14,7 +14,7 @@ volatile bool  g_squeak_detected   = false;
 volatile float g_squeak_confidence = 0.0f;
 volatile float g_normal_confidence = 0.0f;
 
-#define I2S_PORT        I2S_NUM_0
+#define I2S_PORT        I2S_NUM_1
 #define I2S_SAMPLE_RATE EI_CLASSIFIER_FREQUENCY
 #define SLICE_LEN       EI_CLASSIFIER_SLICE_SIZE
 
