@@ -10,6 +10,7 @@
 static portMUX_TYPE      s_mux           = portMUX_INITIALIZER_UNLOCKED;
 static volatile uint32_t s_last_delta_us = 0;
 static volatile uint32_t s_last_pulse_ms = 0;
+float g_circumference_m = HALL_WHEEL_CIRCUMFERENCE_M;
 
 static inline void store_u32(volatile uint32_t *dst, uint32_t val) {
     portENTER_CRITICAL(&s_mux); *dst = val; portEXIT_CRITICAL(&s_mux);
@@ -94,7 +95,7 @@ static void hall_poll_task(void*) {
                                   z, (float)z / 250.0f);
                 } else {
                     store_u32(&s_last_delta_us, delta_us);
-                    float mph = (HALL_WHEEL_CIRCUMFERENCE_M / ((float)delta_us * 1e-6f)) * 2.2374f;
+                    float mph = (g_circumference_m / ((float)delta_us * 1e-6f)) * 2.2374f;
                     Serial.printf("[HALL] Spike! Z=%d (%.1f mT)  delta=%lu ms  speed=%.2f mph\n",
                     z, (float)z / 250.0f,
                     (unsigned long)(delta_us / 1000), mph);
@@ -155,7 +156,7 @@ float hall_get_speed_kmh(void) {
     if ((now_ms - last_ms) > HALL_SPEED_TIMEOUT_MS) return 0.0f;
     uint32_t delta_us = load_u32(&s_last_delta_us);
     if (delta_us == 0) return 0.0f;
-    return (HALL_WHEEL_CIRCUMFERENCE_M / ((float)delta_us * 1e-6f)) * 2.2374f;
+    return (g_circumference_m / ((float)delta_us * 1e-6f)) * 2.2374f;
 }
 
 uint32_t hall_get_last_delta_us(void) {

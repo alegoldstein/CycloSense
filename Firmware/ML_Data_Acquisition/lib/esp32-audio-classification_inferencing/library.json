@@ -1,0 +1,10 @@
+{
+  "name": "esp32-audio-classification_inferencing",
+  "version": "1.0.1",
+  "build": {
+    "srcFilter": [
+      "+<*>",
+      "-<src/edge-impulse-sdk/porting/espressif/esp-dsp/>"
+    ]
+  }
+}

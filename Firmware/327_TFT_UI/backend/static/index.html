@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bike Computer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #161a22;
+    --surface2:  #1d2230;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.14);
+    --text:      #e8eaf0;
+    --muted:     #6b7280;
+    --cyan:      #22d3ee;
+    --amber:     #fbbf24;
+    --red:       #f87171;
+    --green:     #4ade80;
+    --blue:      #60a5fa;
+  }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+
+  .logo {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .conn-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 12px;
+  }
+
+  .conn-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .conn-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .conn-dot.device { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+
+  /* Squeak banner */
+  .squeak-banner {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: rgba(248,113,113,0.12);
+    border: 1px solid rgba(248,113,113,0.35);
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: var(--red);
+    animation: pulse-border 1.4s ease infinite;
+  }
+  .squeak-banner.visible { display: flex; }
+  @keyframes pulse-border {
+    0%,100% { border-color: rgba(248,113,113,0.35); }
+    50%      { border-color: rgba(248,113,113,0.75); }
+  }
+
+  /* Main grid */
+  .grid {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  /* TFT screen replica */
+  .tft {
+    background: #000;
+    border: 2px solid #222;
+    border-radius: 8px;
+    width: 240px;
+    height: 320px;
+    position: relative;
+    overflow: hidden;
+    font-family: 'DM Mono', monospace;
+    flex-shrink: 0;
+  }
+
+  .tft-header {
+    width: 100%;
+    padding: 6px 0 4px;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: #fbbf24;
+    border-bottom: 1px solid #fbbf24;
+  }
+
+  .tft-speed-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 0 10px;
+    border-bottom: 1px solid #fbbf24;
+  }
+
+  .tft-speed-num {
+    font-size: 48px;
+    font-weight: 500;
+    line-height: 1;
+    color: #fff;
+    transition: color 0.3s;
+  }
+  .tft-speed-num.moving { color: #22d3ee; }
+
+  .tft-unit { font-size: 13px; color: #fbbf24; margin-top: 4px; }
+  .tft-rev  { font-size: 9px; color: #4a7c59; margin-top: 4px; }
+
+  .tft-gps {
+    padding: 8px 6px 0;
+    display: none;
+  }
+  .tft-gps.visible { display: block; }
+
+  .tft-gps-row {
+    display: flex;
+    align-items: center;
+    font-size: 9px;
+    padding: 4px 0;
+    border-bottom: 1px solid #1e2a1e;
+  }
+  .tft-gps-label { color: #c97b0f; width: 28px; flex-shrink: 0; }
+  .tft-gps-val   { color: #fbbf24; }
+
+  .tft-no-fix {
+    position: absolute;
+    bottom: 50px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 9px;
+    color: #333;
+  }
+
+  .tft-squeak-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    background: rgba(200,0,0,0.85);
+    color: #fff;
+    font-size: 9px;
+    text-align: center;
+    padding: 3px 0;
+    display: none;
+    letter-spacing: 0.06em;
+  }
+  .tft-squeak-overlay.visible { display: block; }
+
+  /* Right column */
+  .right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Metric cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .card-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 26px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .card-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Chart */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 18px 14px;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .chart-title {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .chart-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--muted);
+    align-items: center;
+  }
+
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    display: inline-block;
+    margin-right: 4px;
+  }
+
+  /* Settings */
+  .settings-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+
+  .settings-title {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .setting-label {
+    font-size: 13px;
+    color: var(--text);
+    min-width: 180px;
+  }
+
+  .setting-label small {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .setting-input {
+    width: 100px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .setting-input:focus { border-color: var(--cyan); }
+
+  .setting-unit {
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 20px;
+  }
+
+  .preset-btns {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+    margin-bottom: 14px;
+  }
+
+  .preset-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .preset-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  .apply-btn {
+    background: var(--cyan);
+    color: #0d0f14;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    transition: opacity 0.15s;
+  }
+  .apply-btn:hover { opacity: 0.85; }
+  .apply-btn:active { transform: scale(0.98); }
+
+  .apply-feedback {
+    font-size: 12px;
+    color: var(--green);
+    margin-left: 10px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .apply-feedback.show { opacity: 1; }
+
+  /* GPS coords section */
+  .gps-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .gps-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .gps-item-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+
+  .gps-item-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  @media (max-width: 720px) {
+    .grid { grid-template-columns: 1fr; }
+    .tft  { width: 200px; height: 266px; }
+  }
+</style>
+</head>
+<body>
+
+<h2 class="sr-only" style="position:absolute;left:-9999px">Bike computer live dashboard</h2>
+
+<header>
+  <span class="logo">🚴 Bike Computer</span>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="conn-pill">
+      <div class="conn-dot" id="dash-dot"></div>
+      <span id="dash-label">connecting…</span>
+    </div>
+    <div class="conn-pill">
+      <div class="conn-dot" id="device-dot"></div>
+      <span id="device-label">ESP32 unknown</span>
+    </div>
+  </div>
+</header>
+
+<div class="squeak-banner" id="squeak-banner">
+  ⚠️ Brake squeak detected — <strong id="squeak-conf">0%</strong> confidence
+</div>
+
+<div class="grid">
+
+  <!-- TFT replica -->
+  <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+    <div class="tft">
+      <div class="tft-squeak-overlay" id="tft-squeak">! BRAKE SQUEAK !</div>
+      <div class="tft-header">WHEEL SPEED</div>
+
+      <div class="tft-speed-section">
+        <div class="tft-speed-num" id="tft-spd">0.0</div>
+        <div class="tft-unit">mph</div>
+        <div class="tft-rev" id="tft-rev">no pulse</div>
+      </div>
+
+      <div class="tft-gps" id="tft-gps">
+        <div class="tft-gps-row">
+          <span class="tft-gps-label">LAT</span>
+          <span class="tft-gps-val" id="tft-lat">—</span>
+        </div>
+        <div class="tft-gps-row">
+          <span class="tft-gps-label">LON</span>
+          <span class="tft-gps-val" id="tft-lon">—</span>
+        </div>
+        <div class="tft-gps-row">
+          <span class="tft-gps-label">SAT</span>
+          <span class="tft-gps-val" id="tft-sat">—</span>
+        </div>
+        <div class="tft-gps-row" style="border-bottom:none">
+          <span class="tft-gps-label">UTC</span>
+          <span class="tft-gps-val" id="tft-utc">—</span>
+        </div>
+      </div>
+
+      <div class="tft-no-fix" id="tft-no-fix">NO GPS FIX</div>
+    </div>
+    <p style="font-size:11px;color:var(--muted);text-align:center">Live TFT replica</p>
+  </div>
+
+  <!-- Right column -->
+  <div class="right-col">
+
+    <!-- Metric cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-label">Speed</div>
+        <div class="card-value" id="spd-card">0.0</div>
+        <div class="card-sub">mph</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Rev period</div>
+        <div class="card-value" id="rev-card">—</div>
+        <div class="card-sub">milliseconds</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Squeak</div>
+        <div class="card-value" id="sq-card" style="font-size:18px;padding-top:4px">Clear</div>
+        <div class="card-sub" id="sq-conf">confidence: —</div>
+      </div>
+      <div class="card">
+        <div class="card-label">GPS time</div>
+        <div class="card-value" id="gps-time-card" style="font-size:20px;padding-top:6px">—</div>
+        <div class="card-sub" id="gps-sat-card">— satellites</div>
+      </div>
+    </div>
+
+    <!-- Speed history chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">Speed history</span>
+        <div class="chart-legend">
+          <span><span class="legend-dot" style="background:#22d3ee"></span>mph</span>
+        </div>
+      </div>
+      <div style="position:relative;height:180px">
+        <canvas id="speedChart" role="img" aria-label="Line chart of speed over the last 60 seconds">Speed history loading…</canvas>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings-card">
+      <div class="settings-title">Configuration</div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          Wheel circumference
+          <small>One full revolution distance</small>
+        </div>
+        <input class="setting-input" type="number" id="circ-input" step="0.01" min="1.0" max="3.5" value="2.18">
+        <span class="setting-unit">m</span>
+      </div>
+
+      <div class="preset-btns">
+        <button class="preset-btn" onclick="setPreset(2.07)">700×25C — 2.07m</button>
+        <button class="preset-btn" onclick="setPreset(2.11)">700×28C — 2.11m</button>
+        <button class="preset-btn" onclick="setPreset(2.18)">700×35C — 2.18m</button>
+        <button class="preset-btn" onclick="setPreset(2.23)">700×40C — 2.23m</button>
+        <button class="preset-btn" onclick="setPreset(1.96)">26″ MTB — 1.96m</button>
+        <button class="preset-btn" onclick="setPreset(2.10)">27.5″ MTB — 2.10m</button>
+        <button class="preset-btn" onclick="setPreset(2.24)">29″ MTB — 2.24m</button>
+      </div>
+
+      <div style="display:flex;align-items:center">
+        <button class="apply-btn" onclick="applyConfig()">Apply & push to ESP32</button>
+        <span class="apply-feedback" id="apply-fb">✓ Sent</span>
+      </div>
+    </div>
+
+    <!-- GPS detail -->
+    <div class="gps-card">
+      <div style="font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">GPS</div>
+      <div class="gps-grid">
+        <div>
+          <div class="gps-item-label">Latitude</div>
+          <div class="gps-item-val" id="d-lat">—</div>
+        </div>
+        <div>
+          <div class="gps-item-label">Longitude</div>
+          <div class="gps-item-val" id="d-lon">—</div>
+        </div>
+        <div>
+          <div class="gps-item-label">Satellites</div>
+          <div class="gps-item-val" id="d-sat">—</div>
+        </div>
+        <div>
+          <div class="gps-item-label">UTC time</div>
+          <div class="gps-item-val" id="d-utc">—</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const MAX_HIST = 60;
+const speedHistory = { labels: [], data: [] };
+let ws = null;
+let deviceOnline = false;
+
+// ── Chart setup ───────────────────────────────────────────────
+const ctx = document.getElementById('speedChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: speedHistory.labels,
+    datasets: [{
+      label: 'mph',
+      data: speedHistory.data,
+      borderColor: '#22d3ee',
+      backgroundColor: 'rgba(34,211,238,0.08)',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      fill: true,
+      tension: 0.35
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: {
+        ticks: { display: false },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      },
+      y: {
+        min: 0,
+        ticks: {
+          color: '#6b7280',
+          font: { size: 11 },
+          callback: v => v.toFixed(1)
+        },
+        grid: { color: 'rgba(255,255,255,0.05)' }
+      }
+    }
+  }
+});
+
+function pushHistory(speed) {
+  const now = new Date().toLocaleTimeString('en', { hour12: false });
+  speedHistory.labels.push(now);
+  speedHistory.data.push(parseFloat(speed.toFixed(2)));
+  if (speedHistory.labels.length > MAX_HIST) {
+    speedHistory.labels.shift();
+    speedHistory.data.shift();
+  }
+  chart.update('none');
+}
+
+// ── DOM helpers ───────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
+
+function applyTelemetry(d) {
+  deviceOnline = true;
+  $('device-dot').className = 'conn-dot device';
+  $('device-label').textContent = 'ESP32 live';
+
+  const spd = parseFloat(d.speed_mph || 0).toFixed(1);
+  const moving = parseFloat(spd) > 0;
+
+  // TFT replica
+  $('tft-spd').textContent = spd;
+  $('tft-spd').className = 'tft-speed-num' + (moving ? ' moving' : '');
+  const delta_ms = d.delta_us ? Math.round(d.delta_us / 1000) : 0;
+  $('tft-rev').textContent = delta_ms > 0 ? `rev ${delta_ms} ms` : 'no pulse';
+  $('tft-rev').style.color = moving ? '#4a7c59' : '#333';
+
+  const gpsOk = d.gps_valid;
+  $('tft-gps').className = 'tft-gps' + (gpsOk ? ' visible' : '');
+  $('tft-no-fix').style.display = gpsOk ? 'none' : 'block';
+  if (gpsOk) {
+    const lat = parseFloat(d.gps_latitude);
+    const lon = parseFloat(d.gps_longitude);
+    $('tft-lat').textContent = `${Math.abs(lat).toFixed(5)} ${lat >= 0 ? 'N' : 'S'}`;
+    $('tft-lon').textContent = `${Math.abs(lon).toFixed(5)} ${lon >= 0 ? 'E' : 'W'}`;
+    $('tft-sat').textContent = `${d.gps_satellites} sats`;
+    $('tft-utc').textContent = `${String(d.gps_hours).padStart(2,'0')}:${String(d.gps_minutes).padStart(2,'0')}:${String(d.gps_seconds).padStart(2,'0')}`;
+  }
+
+  // Squeak
+  const sq = d.squeak_detected;
+  $('tft-squeak').className = 'tft-squeak-overlay' + (sq ? ' visible' : '');
+  $('squeak-banner').className = 'squeak-banner' + (sq ? ' visible' : '');
+  const sqPct = Math.round((d.squeak_confidence || 0) * 100);
+  $('squeak-conf').textContent = sqPct + '%';
+  $('sq-card').textContent = sq ? 'SQUEAK' : 'Clear';
+  $('sq-card').style.color = sq ? 'var(--red)' : 'var(--green)';
+  $('sq-conf').textContent = `confidence: ${sqPct}%`;
+
+  // Metric cards
+  $('spd-card').textContent = spd;
+  $('rev-card').textContent = delta_ms > 0 ? delta_ms : '—';
+  if (gpsOk) {
+    $('gps-time-card').textContent = `${String(d.gps_hours).padStart(2,'0')}:${String(d.gps_minutes).padStart(2,'0')}`;
+    $('gps-sat-card').textContent = `${d.gps_satellites} satellites`;
+    $('d-lat').textContent = `${parseFloat(d.gps_latitude).toFixed(6)}°`;
+    $('d-lon').textContent = `${parseFloat(d.gps_longitude).toFixed(6)}°`;
+    $('d-sat').textContent = d.gps_satellites;
+    $('d-utc').textContent = `${String(d.gps_hours).padStart(2,'0')}:${String(d.gps_minutes).padStart(2,'0')}:${String(d.gps_seconds).padStart(2,'0')} UTC`;
+  }
+
+  pushHistory(parseFloat(spd));
+}
+
+function applyConfig(cfg) {
+  if (!cfg) {
+    // called by user button
+    const val = parseFloat($('circ-input').value);
+    if (isNaN(val) || val < 1 || val > 3.5) {
+      alert('Circumference must be between 1.0 and 3.5 m');
+      return;
+    }
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'set_config', wheel_circumference_m: val }));
+      const fb = $('apply-fb');
+      fb.classList.add('show');
+      setTimeout(() => fb.classList.remove('show'), 2200);
+    } else {
+      alert('Not connected to backend — cannot push config');
+    }
+  } else {
+    // received from server
+    if (cfg.wheel_circumference_m !== undefined) {
+      $('circ-input').value = parseFloat(cfg.wheel_circumference_m).toFixed(3);
+    }
+  }
+}
+
+function setPreset(val) {
+  $('circ-input').value = val.toFixed(2);
+}
+
+// ── WebSocket ─────────────────────────────────────────────────
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/dashboard`);
+
+  ws.onopen = () => {
+    $('dash-dot').className = 'conn-dot live';
+    $('dash-label').textContent = 'Dashboard live';
+  };
+
+  ws.onclose = () => {
+    $('dash-dot').className = 'conn-dot';
+    $('dash-label').textContent = 'reconnecting…';
+    $('device-dot').className = 'conn-dot';
+    $('device-label').textContent = 'ESP32 unknown';
+    deviceOnline = false;
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.type === 'telemetry') {
+      applyTelemetry(msg);
+    } else if (msg.type === 'init') {
+      // initial state dump on connect
+      if (msg.state && msg.state.ts > 0) applyTelemetry(msg.state);
+      if (msg.config) applyConfig(msg.config);
+    } else if (msg.type === 'config') {
+      applyConfig(msg);
+    }
+  };
+}
+
+connect();
+
+// Mark device offline after 5 s of silence
+setInterval(() => {
+  if (!deviceOnline) return;
+  // handled by server disconnect event — kept for clarity
+}, 5000);
+</script>
+</body>
+</html>

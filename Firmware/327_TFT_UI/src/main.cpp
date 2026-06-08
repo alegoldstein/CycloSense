@@ -248,6 +248,7 @@ extern "C" {
 
 #include "gps.h"
 #include "hall.h"
+#include "ws_telemetry.h"
 
 TFT_eSPI tft = TFT_eSPI();
 
@@ -259,8 +260,8 @@ int       g_path_len = 0;
 #define ROUTE_END_NODE    2377u
 #define MAX_PATH          2048
 
-static GPS_data     s_gps     = {};
-static portMUX_TYPE s_gps_mux = portMUX_INITIALIZER_UNLOCKED;
+GPS_data     s_gps     = {};
+portMUX_TYPE s_gps_mux = portMUX_INITIALIZER_UNLOCKED;
 
 static void gps_task(void *pv)
 {
@@ -281,6 +282,7 @@ void setup()
 {
     Serial.begin(115200);
     delay(2000);
+    Serial.println("=== BOOTING ===");
 
     /* TFT first — before I2S touches DMA */
     tft.init();
@@ -319,6 +321,8 @@ void setup()
     audio_classifier_init();
 
     Serial.println("display ready");
+
+    ws_telemetry_start("iPhone", "mrt4mb0urin3m4n", "10.105.247.133", 8000);
 }
 
 void loop()

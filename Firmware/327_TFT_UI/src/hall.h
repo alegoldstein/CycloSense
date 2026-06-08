@@ -27,6 +27,7 @@ extern "C" {
 // One TMAG5273 interrupt fires per spoke magnet pass = one wheel revolution.
 // Set to your actual wheel circumference in metres.
 #define HALL_WHEEL_CIRCUMFERENCE_M  2.18f   // 700x35C
+extern float g_circumference_m;
 
 // Zero speed after this many ms without a pulse
 #define HALL_SPEED_TIMEOUT_MS   3000
