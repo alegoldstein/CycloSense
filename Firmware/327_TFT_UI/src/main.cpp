@@ -234,7 +234,18 @@
     *   5. loop() updates metrics bar with speed + GPS time
     */
 
-  #include <Arduino.h>
+ /*
+ * main.cpp — Arduino entry point
+ *
+ * Boot sequence:
+ *   1. TFT init + black screen
+ *   2. SPIFFS mount
+ *   3. A* load graph + find route
+ *   4. Draw map centred on map origin
+ *   5. loop() updates metrics bar with speed + GPS time
+ */
+
+#include <Arduino.h>
 #include <TFT_eSPI.h>
 #include <SPIFFS.h>
 #include <Wire.h>
@@ -259,44 +270,75 @@ int       g_path_len = 0;
 #define ROUTE_END_NODE    2370u
 #define MAX_PATH          2048
 
+// UTC-5 for CDT (summer), UTC-6 for CST (winter) — adjust as needed
+#define UTC_OFFSET_HOURS  -5
+
 static GPS_data     s_gps     = {};
 static portMUX_TYPE s_gps_mux = portMUX_INITIALIZER_UNLOCKED;
 
+/* -------------------------------------------------------------------------
+ * GPS task — runs on its own FreeRTOS task, merges GGA + RMC into s_gps
+ * ---------------------------------------------------------------------- */
 static void gps_task(void *pv)
 {
     char buf[128];
     while (1) {
         if (gps_read_line(buf, sizeof(buf), 1100) > 0) {
-
-            /* print every raw NMEA sentence */
-           // Serial.printf("[GPS RAW] %s", buf);
-
             GPS_data tmp = {};
             if (gps_parse(buf, &tmp)) {
                 portENTER_CRITICAL(&s_gps_mux);
-                s_gps = tmp;
+
+                // valid: set true from RMC 'A', clear false from RMC 'V'
+                // GGA doesn't carry the RMC valid flag so only update when
+                // tmp actually has a fix opinion (satellites field present
+                // means GGA; valid flag means RMC)
+                if (tmp.satellites > 0) {
+                    // GGA sentence — update sat count and position
+                    s_gps.satellites = tmp.satellites;
+                    if (tmp.latitude  != 0.0) s_gps.latitude  = tmp.latitude;
+                    if (tmp.longitude != 0.0) s_gps.longitude = tmp.longitude;
+                } else {
+                    // RMC sentence — authoritative source for valid flag
+                    s_gps.valid = tmp.valid;
+                    if (tmp.latitude  != 0.0) s_gps.latitude  = tmp.latitude;
+                    if (tmp.longitude != 0.0) s_gps.longitude = tmp.longitude;
+                }
+
+                // Time comes from RMC; update whenever non-zero
+                if (tmp.hours || tmp.minutes || tmp.seconds) {
+                    // Apply UTC offset, handle day wrap
+                    int h = (int)tmp.hours + UTC_OFFSET_HOURS;
+                    if (h < 0)  h += 24;
+                    if (h >= 24) h -= 24;
+                    s_gps.hours   = (uint8_t)h;
+                    s_gps.minutes = tmp.minutes;
+                    s_gps.seconds = tmp.seconds;
+                }
+
                 portEXIT_CRITICAL(&s_gps_mux);
 
-                /* print parsed data every sentence */
-              //  Serial.printf("[GPS] valid=%d  sats=%d  lat=%.5f  lon=%.5f  time=%02u:%02u:%02u\n",
-                            //  tmp.valid, tmp.satellites,
-                             // tmp.latitude, tmp.longitude,
-                            //  tmp.hours, tmp.minutes, tmp.seconds);
+                Serial.printf("[GPS] valid=%d  sats=%d  lat=%.5f  lon=%.5f  time=%02u:%02u:%02u\n",
+                              s_gps.valid, s_gps.satellites,
+                              s_gps.latitude, s_gps.longitude,
+                              s_gps.hours, s_gps.minutes, s_gps.seconds);
             }
         }
     }
 }
 
+/* -------------------------------------------------------------------------
+ * Setup
+ * ---------------------------------------------------------------------- */
 void setup()
 {
     Serial.begin(115200);
     delay(2000);
 
-    /* TFT first — before I2S touches DMA */
+    // TFT first — before I2S touches DMA
     tft.init();
     tft.setRotation(2);
     tft.fillScreen(TFT_BLACK);
-   Serial.println("TFT ready");
+    Serial.println("TFT ready");
 
     Wire.begin(21, 22);
     Wire.setClock(HALL_I2C_SCL_SPEED);
@@ -315,41 +357,55 @@ void setup()
     }
 
     g_path = (uint32_t *)malloc(MAX_PATH * sizeof(uint32_t));
+    if (!g_path) { Serial.println("path malloc failed"); return; }
+
     g_path_len = astar_find(&g_graph, ROUTE_START_NODE, ROUTE_END_NODE,
                             g_path, MAX_PATH);
+    Serial.printf("astar result: %d\n", g_path_len);
+    if (g_path_len <= 0) {
+        Serial.printf("Route failed with code %d — check node IDs\n", g_path_len);
+    }
 
     draw_background(&g_graph);
-    draw_route(&g_graph, g_path, g_path_len);
-    tft.fillCircle(120, 120, 5, TFT_RED);
+    if (g_path_len > 0) {
+        draw_route(&g_graph, g_path, g_path_len);
+    }
+
+    // Divider between map and metrics bar
     tft.drawFastHLine(0, 240, 240, TFT_BLUE);
     tft.fillRect(0, 241, 240, 79, TFT_BLACK);
     draw_metrics(0, 0, 0);
 
-    /* audio last — after display is fully drawn, uses I2S_NUM_1 */
+    // Audio last — after display is fully drawn, uses I2S_NUM_1
     audio_classifier_init();
 
     Serial.println("display ready");
 }
 
+/* -------------------------------------------------------------------------
+ * Loop — 250 ms cadence
+ * ---------------------------------------------------------------------- */
 void loop()
 {
-    static unsigned long last_update = 0;
-    static uint32_t      last_spd    = 9999;
-    static bool          last_squeak = false;
+    static unsigned long last_update  = 0;
+    static uint32_t      last_spd     = 9999;
+    static bool          last_squeak  = false;
+    static uint8_t       last_hours   = 255;
+    static uint8_t       last_minutes = 255;
 
     if (millis() - last_update < 250) return;
     last_update = millis();
 
-    /* squeak banner */
+    // ── Squeak banner ────────────────────────────────────────────────────
     bool squeak = (bool)g_squeak_detected;
     if (squeak != last_squeak) {
         last_squeak = squeak;
         tft_show_squeak_warning(squeak ? 1 : 0);
-       Serial.printf("[DISPLAY] squeak banner: %s  confidence=%.2f\n",
-                     squeak ? "ON" : "OFF", (float)g_squeak_confidence);
+        Serial.printf("[DISPLAY] squeak banner: %s  confidence=%.2f\n",
+                      squeak ? "ON" : "OFF", (float)g_squeak_confidence);
     }
 
-    /* speed + GPS */
+    // ── Read shared state ─────────────────────────────────────────────────
     float speed_mph = hall_get_speed_kmh();
     uint32_t spd = (uint32_t)(speed_mph * 10);
 
@@ -358,22 +414,47 @@ void loop()
     portEXIT_CRITICAL(&s_gps_mux);
 
     if (spd != last_spd) {
-        last_spd = spd;
+    last_spd = spd;
 
-        tft.fillRect(0, 241, 240, 79, TFT_BLACK);
+    tft.fillRect(0, 241, 240, 79, TFT_BLACK);
 
+    char spd_str[16];
+    snprintf(spd_str, sizeof(spd_str), "%.1f", speed_mph);
+    tft.setTextFont(4);
+    tft.setTextColor(speed_mph > 0.0f ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
+    tft.setCursor(10, 248);
+    tft.print(spd_str);
+
+    tft.setTextFont(1);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.setCursor(10, 292);
+    tft.print("mph");
+
+    // Always redraw time here if valid — do NOT sync last_hours/last_minutes
+    // so the independent time block still fires on minute boundaries
+    // ── Map tracking (only when GPS valid) ───────────────────────────────
+if (gps.valid && gps.latitude != 0.0 && gps.longitude != 0.0) {
+    int redrew = draw_user(&g_graph, g_path, g_path_len,
+                           gps.latitude, gps.longitude);
+    if (redrew) {
+        // draw_user already called draw_background + draw_route internally,
+        // but we need to restore the divider and metrics bar it may have
+        // partially overwritten if MAP_HEIGHT bleeds into it
+        tft.drawFastHLine(0, 240, 240, TFT_BLUE);
+
+        // Restore speed
         char spd_str[16];
         snprintf(spd_str, sizeof(spd_str), "%.1f", speed_mph);
         tft.setTextFont(4);
         tft.setTextColor(speed_mph > 0.0f ? TFT_CYAN : TFT_WHITE, TFT_BLACK);
         tft.setCursor(10, 248);
         tft.print(spd_str);
-
         tft.setTextFont(1);
         tft.setTextColor(TFT_YELLOW, TFT_BLACK);
         tft.setCursor(10, 292);
         tft.print("mph");
 
+        // Restore time
         if (gps.valid) {
             char time_str[12];
             snprintf(time_str, sizeof(time_str), "%02u:%02u", gps.hours, gps.minutes);
@@ -383,10 +464,30 @@ void loop()
             tft.print(time_str);
         }
 
-        Serial.printf("[DISPLAY] speed=%.1f mph  squeaky=%.2f  normal=%.2f\n",
-                      speed_mph,
-                      (float)g_squeak_confidence,
-                      (float)g_normal_confidence);
-       
+        // Force speed/time to redraw next iteration too in case of overlap
+        last_spd     = 9999;
+        last_hours   = 255;
+        last_minutes = 255;
     }
+}
+
+    Serial.printf("[DISPLAY] speed=%.1f mph  squeaky=%.2f  normal=%.2f\n",
+                  speed_mph,
+                  (float)g_squeak_confidence,
+                  (float)g_normal_confidence);
+}
+
+// Independent time update — fires on minute change regardless of speed
+if (gps.valid && (gps.hours != last_hours || gps.minutes != last_minutes)) {
+    last_hours   = gps.hours;
+    last_minutes = gps.minutes;
+
+    tft.fillRect(140, 282, 100, 18, TFT_BLACK);
+    char time_str[12];
+    snprintf(time_str, sizeof(time_str), "%02u:%02u", gps.hours, gps.minutes);
+    tft.setTextFont(2);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.setCursor(170, 292);
+    tft.print(time_str);
+}
 }

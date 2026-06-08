@@ -131,9 +131,9 @@ static void classifier_task(void *pv)
         uint32_t now = millis();
         if (now - last_status_ms >= 2000) {
             last_status_ms = now;
-            Serial.printf("[AUDIO] squeaky=%.2f  normal=%.2f  → %s\n",
-                          squeak_conf, normal_conf,
-                          g_squeak_detected ? "*** SQUEAK ***" : "normal");
+          //  Serial.printf("[AUDIO] squeaky=%.2f  normal=%.2f  → %s\n",
+               //           squeak_conf, normal_conf,
+                //          g_squeak_detected ? "*** SQUEAK ***" : "normal");
         }
 
         if (g_squeak_detected) {

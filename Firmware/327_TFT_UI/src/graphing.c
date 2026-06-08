@@ -15,6 +15,23 @@
 static int16_t curr_center_x = 0;
 static int16_t curr_center_y = 0;
 
+
+// In graphing.c, add at top:
+static int first_fix = 1;
+
+// In draw_user, change the threshold check to:
+int16_t threshold = VIEW_RANGE_M * 6 / 10;
+if (first_fix ||
+    abs(user_x - curr_center_x) > threshold ||
+    abs(user_y - curr_center_y) > threshold) {
+    first_fix = 0;
+    curr_center_x = user_x;
+    curr_center_y = user_y;
+    redraw = 1;
+    draw_background(g);
+    draw_route(g, path, path_len);
+}
+
 static void latlon_to_xy(double lat, double lon, int16_t *x_m, int16_t *y_m)
 {
     double lat_rad        = lat            * M_PI / 180.0;
