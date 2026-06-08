@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 
+
 #define MAP_ORIGIN_LAT   42.056871
 #define MAP_ORIGIN_LON  -87.679689
 #define EARTH_RADIUS_M   6371000.0
@@ -105,9 +106,11 @@ void draw_route(const Graph *g, const uint32_t *path, int path_len)
 
         if (y0 >= MAP_HEIGHT && y1 >= MAP_HEIGHT) continue;
 
-        tft_draw_line(x0,   y0,   x1,   y1,   COLOR_BLUE);
-        tft_draw_line(x0+1, y0,   x1+1, y1,   COLOR_BLUE);
-        tft_draw_line(x0,   y0+1, x1,   y1+1, COLOR_BLUE);
+        tft_draw_line(x0,   y0,   x1,   y1,   COLOR_GREEN);
+        tft_draw_line(x0+1, y0+1,   x1+1, y1+1,   COLOR_GREEN);
+        tft_draw_line(x0-1, y0-1,   x1-1, y1-1,   COLOR_GREEN);
+        tft_draw_line(x0+2,   y0+2, x1+2,   y1+2, COLOR_GREEN);
+        tft_draw_line(x0-2,   y0-2, x1-2,   y1-2, COLOR_GREEN);
     }
 }
 

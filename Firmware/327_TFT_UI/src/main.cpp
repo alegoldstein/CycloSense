@@ -255,8 +255,8 @@ Graph     g_graph;
 uint32_t *g_path     = NULL;
 int       g_path_len = 0;
 
-#define ROUTE_START_NODE  7751u
-#define ROUTE_END_NODE    2377u
+#define ROUTE_START_NODE  1589u
+#define ROUTE_END_NODE    2370u
 #define MAX_PATH          2048
 
 static GPS_data     s_gps     = {};
@@ -267,11 +267,21 @@ static void gps_task(void *pv)
     char buf[128];
     while (1) {
         if (gps_read_line(buf, sizeof(buf), 1100) > 0) {
+
+            /* print every raw NMEA sentence */
+           // Serial.printf("[GPS RAW] %s", buf);
+
             GPS_data tmp = {};
             if (gps_parse(buf, &tmp)) {
                 portENTER_CRITICAL(&s_gps_mux);
                 s_gps = tmp;
                 portEXIT_CRITICAL(&s_gps_mux);
+
+                /* print parsed data every sentence */
+              //  Serial.printf("[GPS] valid=%d  sats=%d  lat=%.5f  lon=%.5f  time=%02u:%02u:%02u\n",
+                            //  tmp.valid, tmp.satellites,
+                             // tmp.latitude, tmp.longitude,
+                            //  tmp.hours, tmp.minutes, tmp.seconds);
             }
         }
     }
@@ -293,7 +303,7 @@ void setup()
     hall_init(5);
 
     gps_init();
-    gps_set_mode(GPS_RMC | GPS_GGA, 1);
+    gps_set_mode(GPS_RMC | GPS_GGA | GPS_GSV, 1);
     gps_set_update_rate(1000);
     xTaskCreate(gps_task, "gps", 4096, NULL, 4, NULL);
 
