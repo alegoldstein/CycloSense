@@ -18,7 +18,7 @@ extern "C" {
 #define HALL_I2C_SCL_SPEED      100000   // Hz — passed to Wire.setClock()
 
 // GPIO that TMAG5273 INT pin is wired to (active-low, falling edge)
-#define HALL_INT_GPIO           4
+//#define HALL_INT_GPIO           4
 
 // TMAG5273 Z-axis threshold (6-bit value written to Z_THR_CONFIG)
 #define HALL_Z_THRESHOLD        0x02   // 2.06 mT — above noise (0.7mT), below spoke magnet peak (~4mT)

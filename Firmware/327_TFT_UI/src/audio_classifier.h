@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-#define MIC_SCK_PIN       26
-#define MIC_WS_PIN        25
-#define MIC_SD_PIN        27
+#define MIC_SCK_PIN       32
+#define MIC_WS_PIN        13
+#define MIC_SD_PIN        33
 #define SQUEAK_THRESHOLD  0.80f
 
 extern volatile bool  g_squeak_detected;

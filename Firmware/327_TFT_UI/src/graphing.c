@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 
+
 #define MAP_ORIGIN_LAT   42.056871
 #define MAP_ORIGIN_LON  -87.679689
 #define EARTH_RADIUS_M   6371000.0
@@ -13,6 +14,23 @@
 
 static int16_t curr_center_x = 0;
 static int16_t curr_center_y = 0;
+
+
+// In graphing.c, add at top:
+static int first_fix = 1;
+
+// In draw_user, change the threshold check to:
+int16_t threshold = VIEW_RANGE_M * 6 / 10;
+if (first_fix ||
+    abs(user_x - curr_center_x) > threshold ||
+    abs(user_y - curr_center_y) > threshold) {
+    first_fix = 0;
+    curr_center_x = user_x;
+    curr_center_y = user_y;
+    redraw = 1;
+    draw_background(g);
+    draw_route(g, path, path_len);
+}
 
 static void latlon_to_xy(double lat, double lon, int16_t *x_m, int16_t *y_m)
 {
@@ -105,9 +123,11 @@ void draw_route(const Graph *g, const uint32_t *path, int path_len)
 
         if (y0 >= MAP_HEIGHT && y1 >= MAP_HEIGHT) continue;
 
-        tft_draw_line(x0,   y0,   x1,   y1,   COLOR_BLUE);
-        tft_draw_line(x0+1, y0,   x1+1, y1,   COLOR_BLUE);
-        tft_draw_line(x0,   y0+1, x1,   y1+1, COLOR_BLUE);
+        tft_draw_line(x0,   y0,   x1,   y1,   COLOR_GREEN);
+        tft_draw_line(x0+1, y0+1,   x1+1, y1+1,   COLOR_GREEN);
+        tft_draw_line(x0-1, y0-1,   x1-1, y1-1,   COLOR_GREEN);
+        tft_draw_line(x0+2,   y0+2, x1+2,   y1+2, COLOR_GREEN);
+        tft_draw_line(x0-2,   y0-2, x1-2,   y1-2, COLOR_GREEN);
     }
 }
 
