@@ -526,7 +526,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "",
+      "plot": "EE327 - UI + GPS - Fab Outputs/",
       "pos_files": "",
       "specctra_dsn": "",
       "step": "",
@@ -669,7 +669,7 @@
         "uuid": "7bc459f9-26a9-4372-8adb-40dec28fb8ff"
       }
     ],
-    "used_designators": "#PWR18-20,J5-6",
+    "used_designators": "",
     "variants": []
   },
   "sheets": [
