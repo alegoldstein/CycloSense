@@ -17,7 +17,7 @@ Outcome:
 A bike computer prototype that successfully tracks speed and provides navigation while showcasing predictive maintenance using edge AI.
 
 <p align="center">
-  <img src="Photos/schematic.png" width="800">
+  <img src="Photos/PCB-Schematic" width="800">
   <br>
   <em>PCB Schematic</em>
 </p>
@@ -28,11 +28,6 @@ A bike computer prototype that successfully tracks speed and provides navigation
   <em>PCB Rendering</em>
 </p>
 
-<p align="center">
-  <img src="Photos/PCB-Render.png" width="600">
-  <br>
-  <em>PCB Rendering</em>
-</p>
 
 <table align="center">
   <tr>
